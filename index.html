@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#22c55e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="りょうせいMAP">
+  <title>りょうせいMAP</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">🗺️ りょうせいMAP</h1>
+      <div class="header-right">
+        <span class="spot-count" id="spotCount">0件</span>
+        <button class="refresh-btn" id="refreshBtn" title="データを更新">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+            <path d="M21 3v5h-5"/>
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+            <path d="M8 16H3v5"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="filter-section">
+    <div class="filter-scroll">
+
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="environment" data-value="all">すべて</button>
+        <button class="filter-btn" data-filter="environment" data-value="屋内">🏠 屋内</button>
+        <button class="filter-btn" data-filter="environment" data-value="屋外">🌳 屋外</button>
+      </div>
+
+      <div class="filter-divider"></div>
+
+      <div class="filter-group">
+        <button class="filter-btn toggle-btn" data-filter="unvisited" data-value="true">✨ まだ行ってない</button>
+      </div>
+
+      <div class="filter-divider"></div>
+
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="category" data-value="all">全カテゴリ</button>
+        <button class="filter-btn" data-filter="category" data-value="公園">🌿 公園</button>
+        <button class="filter-btn" data-filter="category" data-value="動物園">🐘 動物園</button>
+        <button class="filter-btn" data-filter="category" data-value="水族館">🐠 水族館</button>
+        <button class="filter-btn" data-filter="category" data-value="乗り物体験">🚂 乗り物</button>
+        <button class="filter-btn" data-filter="category" data-value="博物館">🏛️ 博物館</button>
+        <button class="filter-btn" data-filter="category" data-value="食事">🍜 食事</button>
+        <button class="filter-btn" data-filter="category" data-value="その他">📍 その他</button>
+      </div>
+
+      <div class="filter-divider"></div>
+
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="area" data-value="all">全エリア</button>
+        <button class="filter-btn" data-filter="area" data-value="都内">東京</button>
+        <button class="filter-btn" data-filter="area" data-value="埼玉">埼玉</button>
+        <button class="filter-btn" data-filter="area" data-value="神奈川">神奈川</button>
+        <button class="filter-btn" data-filter="area" data-value="千葉">千葉</button>
+        <button class="filter-btn" data-filter="area" data-value="群馬">群馬</button>
+        <button class="filter-btn" data-filter="area" data-value="その他">その他</button>
+      </div>
+
+      <div class="filter-divider"></div>
+
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="ageGroup" data-value="all">全年齢</button>
+        <button class="filter-btn" data-filter="ageGroup" data-value="今向き">👶 今向き</button>
+        <button class="filter-btn" data-filter="ageGroup" data-value="もう少し大きくなってから">📅 後で</button>
+      </div>
+
+    </div>
+  </div>
+
+  <main class="main-content">
+    <div id="loadingState" class="loading-state">
+      <div class="loading-spinner"></div>
+      <p>読み込み中...</p>
+    </div>
+    <div id="emptyState" class="empty-state" style="display:none">
+      <p>🔍 条件に合うスポットがありません</p>
+      <button class="reset-link" id="resetFilters">フィルタをリセット</button>
+    </div>
+    <div class="card-grid" id="cardGrid"></div>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js');
+    }
+  </script>
+</body>
+</html>
