@@ -19,13 +19,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check secrets
+        id: check
+        run: |
+          if [ -z "${{ secrets.NOTION_API_KEY }}" ] || [ -z "${{ secrets.NOTION_DATABASE_ID }}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::NOTION_API_KEY または NOTION_DATABASE_ID が未設定です。Settings > Secrets and variables > Actions で登録してください。"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Fetch Notion database
+        if: steps.check.outputs.skip == 'false'
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
         run: python3 scripts/fetch-notion.py
 
       - name: Commit updated data
+        if: steps.check.outputs.skip == 'false'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
