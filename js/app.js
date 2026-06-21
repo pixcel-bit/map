@@ -1,16 +1,14 @@
 'use strict';
 
-const DB_ID = '386b60f29e4580e39941ea594643adc3';
-const CONFIG_KEY = 'ryosei_map_config';
+const REPO         = 'pixcel-bit/map';
+const DATA_URL     = `https://raw.githubusercontent.com/${REPO}/main/data.json`;
+const ADD_WORKFLOW = 'add-spot.yml';
+const CONFIG_KEY   = 'ryosei_map_config';
 
 const CATEGORY_ICONS = {
   '公園': '🌿', '動物園': '🐘', '水族館': '🐠',
   '乗り物体験': '🚂', '博物館': '🏛️', '食事': '🍜', 'その他': '📍',
 };
-
-const CATEGORIES = ['公園', '動物園', '水族館', '乗り物体験', '博物館', '食事', 'その他'];
-const AREAS      = ['都内', '埼玉', '神奈川', '千葉', '群馬', 'その他'];
-const AGE_GROUPS = ['今向き', 'もう少し大きくなってから'];
 
 const filters = { environment: 'all', unvisited: false, category: 'all', area: 'all', ageGroup: 'all' };
 let allSpots = [];
@@ -21,60 +19,75 @@ function getConfig() {
 }
 function saveConfig(cfg) { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); }
 
-// === Notion API via Cloudflare Worker ===
-async function notionFetch(path, options = {}) {
-  const { workerUrl } = getConfig();
-  if (!workerUrl) throw new Error('WORKER_URL_NOT_SET');
-  const resp = await fetch(workerUrl.replace(/\/$/, '') + path, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-  });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err.message || `HTTP ${resp.status}`);
-  }
-  return resp.json();
-}
-
+// === Data fetch (raw.githubusercontent.com → CORS OK) ===
 async function fetchAllSpots() {
-  const data = await notionFetch(`/databases/${DB_ID}/query`, {
-    method: 'POST',
-    body: JSON.stringify({
-      sorts: [
-        { property: '行ったことある', direction: 'ascending' },
-        { property: '楽しさ評価',     direction: 'descending' },
-      ],
-      page_size: 100,
-    }),
-  });
-  return (data.results ?? []).map(parseSpot).filter(s => s.name);
+  const resp = await fetch(`${DATA_URL}?t=${Date.now()}`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  return (data.results ?? [])
+    .map(parseSpot)
+    .filter(s => s.name)
+    .sort((a, b) => {
+      if (a.visited !== b.visited) return a.visited ? 1 : -1;
+      if ((b.rating ?? 0) !== (a.rating ?? 0)) return (b.rating ?? 0) - (a.rating ?? 0);
+      return a.name.localeCompare(b.name, 'ja');
+    });
 }
 
+// === Spot creation (GitHub API workflow_dispatch → CORS OK) ===
 async function createSpot(formData) {
-  return notionFetch('/pages', {
-    method: 'POST',
-    body: JSON.stringify({
-      parent: { database_id: DB_ID },
-      properties: buildNotionProperties(formData),
-    }),
-  });
+  const { githubToken } = getConfig();
+  if (!githubToken) throw new Error('GITHUB_TOKEN_NOT_SET');
+
+  const resp = await fetch(
+    `https://api.github.com/repos/${REPO}/actions/workflows/${ADD_WORKFLOW}/dispatches`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `token ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ref: 'main',
+        inputs: {
+          name:        formData.name,
+          category:    formData.category    || '',
+          area:        formData.area        || '',
+          environment: formData.environment || '',
+          mapUrl:      formData.mapUrl      || '',
+          hasVehicle:  formData.hasVehicle  ? 'true' : 'false',
+          hasCreature: formData.hasCreature ? 'true' : 'false',
+          ageGroup:    formData.ageGroup    || '',
+          visited:     formData.visited     ? 'true' : 'false',
+          accessMemo:  formData.accessMemo  || '',
+          memo:        formData.memo        || '',
+        },
+      }),
+    }
+  );
+
+  if (resp.status === 401) throw new Error('トークンが無効です。設定を確認してください');
+  if (resp.status === 404) throw new Error('ワークフローが見つかりません。リポジトリを確認してください');
+  if (!resp.ok) throw new Error(`GitHub API error: ${resp.status}`);
+  // 204 No Content = success
 }
 
-// === Notion property parsers (read) ===
-function title(p)    { return p?.title?.map(t => t.plain_text).join('') ?? ''; }
-function sel(p)      { return p?.select?.name ?? ''; }
-function chk(p)      { return p?.checkbox ?? false; }
-function urlProp(p)  { return p?.url ?? ''; }
-function num(p)      { return p?.number ?? null; }
-function rt(p)       { return p?.rich_text?.map(t => t.plain_text).join('') ?? ''; }
-function dt(p)       { return p?.date?.start ?? ''; }
+// === Notion property parsers ===
+function title(p)   { return p?.title?.map(t => t.plain_text).join('') ?? ''; }
+function sel(p)     { return p?.select?.name ?? ''; }
+function chk(p)     { return p?.checkbox ?? false; }
+function urlP(p)    { return p?.url ?? ''; }
+function num(p)     { return p?.number ?? null; }
+function rt(p)      { return p?.rich_text?.map(t => t.plain_text).join('') ?? ''; }
+function dt(p)      { return p?.date?.start ?? ''; }
 
 function parseSpot(page) {
   const p = page.properties ?? {};
   return {
     id:          page.id,
     name:        title(p['スポット名']),
-    mapUrl:      urlProp(p['Google マップ URL']),
+    mapUrl:      urlP(p['Google マップ URL']),
     category:    sel(p['カテゴリ']),
     area:        sel(p['エリア']),
     accessMemo:  rt(p['アクセスメモ']),
@@ -87,23 +100,6 @@ function parseSpot(page) {
     rating:      num(p['楽しさ評価']),
     memo:        rt(p['メモ']),
   };
-}
-
-// === Notion property builder (write) ===
-function buildNotionProperties(f) {
-  const p = {};
-  p['スポット名'] = { title: [{ text: { content: f.name } }] };
-  if (f.mapUrl)      p['Google マップ URL'] = { url: f.mapUrl };
-  if (f.category)    p['カテゴリ'] = { select: { name: f.category } };
-  if (f.area)        p['エリア'] = { select: { name: f.area } };
-  if (f.environment) p['屋内 / 屋外'] = { select: { name: f.environment } };
-  p['乗り物要素あり']   = { checkbox: !!f.hasVehicle };
-  p['虫・生き物要素あり'] = { checkbox: !!f.hasCreature };
-  if (f.ageGroup)    p['年齢適性'] = { select: { name: f.ageGroup } };
-  p['行ったことある'] = { checkbox: !!f.visited };
-  if (f.accessMemo)  p['アクセスメモ'] = { rich_text: [{ text: { content: f.accessMemo } }] };
-  if (f.memo)        p['メモ'] = { rich_text: [{ text: { content: f.memo } }] };
-  return p;
 }
 
 // === Filtering ===
@@ -180,8 +176,12 @@ function renderCard(spot) {
     ? `<span class="visited-label">✅ 訪問済${spot.lastVisit ? ' (' + fmtDate(spot.lastVisit) + ')' : ''}</span>`
     : '<span class="visited-label unvisited">✨ 未訪問</span>';
 
+  const pendingBadge = spot._pending
+    ? '<span class="badge badge-pending">⏳ Notion反映中</span>'
+    : '';
+
   return `
-<div class="spot-card${spot.visited ? ' visited' : ''}">
+<div class="spot-card${spot.visited ? ' visited' : ''}${spot._pending ? ' pending' : ''}">
   <div class="card-header">
     <h2 class="spot-name">${esc(spot.name)}</h2>
     ${renderEnvBadge(spot.environment)}
@@ -191,6 +191,7 @@ function renderCard(spot) {
     ${spot.area     ? `<span class="badge badge-area">📍 ${esc(spot.area)}</span>` : ''}
     ${features.map(f => `<span class="badge badge-feature">${esc(f)}</span>`).join('')}
     ${ageBadge}
+    ${pendingBadge}
   </div>
   ${spot.memo       ? `<p class="card-memo">💬 ${esc(spot.memo)}</p>` : ''}
   ${spot.accessMemo ? `<p class="card-access">🚃 ${esc(spot.accessMemo)}</p>` : ''}
@@ -214,6 +215,19 @@ function render() {
     empty.style.display = 'none';
     grid.innerHTML = filtered.map(renderCard).join('');
   }
+}
+
+// === Toast ===
+function showToast(msg) {
+  let toast = document.getElementById('toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3500);
 }
 
 // === Filters ===
@@ -241,10 +255,8 @@ function resetAllFilters() {
   filters.environment = 'all'; filters.unvisited = false;
   filters.category = 'all'; filters.area = 'all'; filters.ageGroup = 'all';
   document.querySelectorAll('.filter-btn').forEach(btn => {
-    const isDefault = btn.dataset.value === 'all';
-    const isToggle  = btn.dataset.filter === 'unvisited';
-    btn.classList.toggle('active', isDefault && !isToggle);
-    if (isToggle) btn.classList.remove('active');
+    btn.classList.toggle('active', btn.dataset.value === 'all' && btn.dataset.filter !== 'unvisited');
+    if (btn.dataset.filter === 'unvisited') btn.classList.remove('active');
   });
   render();
 }
@@ -252,16 +264,15 @@ function resetAllFilters() {
 // === Settings Modal ===
 function showSettings() {
   const modal = document.getElementById('settingsModal');
-  const input = document.getElementById('workerUrlInput');
-  input.value = getConfig().workerUrl ?? '';
+  document.getElementById('githubTokenInput').value = getConfig().githubToken ?? '';
   modal.style.display = 'flex';
 }
 
 function setupSettings() {
   document.getElementById('saveSettings').addEventListener('click', () => {
-    const url = document.getElementById('workerUrlInput').value.trim();
-    if (!url) { alert('Worker URLを入力してください'); return; }
-    saveConfig({ ...getConfig(), workerUrl: url });
+    const token = document.getElementById('githubTokenInput').value.trim();
+    if (!token) { alert('GitHub Tokenを入力してください'); return; }
+    saveConfig({ ...getConfig(), githubToken: token });
     document.getElementById('settingsModal').style.display = 'none';
     loadData();
   });
@@ -270,12 +281,16 @@ function setupSettings() {
 
 // === Add Spot Modal ===
 function setupAddModal() {
-  const modal   = document.getElementById('addModal');
-  const fab     = document.getElementById('addBtn');
+  const modal    = document.getElementById('addModal');
+  const fab      = document.getElementById('addBtn');
   const closeBtn = document.getElementById('closeAddModal');
-  const form    = document.getElementById('addForm');
+  const form     = document.getElementById('addForm');
 
-  fab.addEventListener('click', () => { form.reset(); modal.style.display = 'flex'; });
+  fab.addEventListener('click', () => {
+    if (!getConfig().githubToken) { showSettings(); return; }
+    form.reset();
+    modal.style.display = 'flex';
+  });
   closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
   modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
 
@@ -288,26 +303,58 @@ function setupAddModal() {
     const fd = new FormData(form);
     const formData = {
       name:        fd.get('name')?.trim(),
-      mapUrl:      fd.get('mapUrl')?.trim() || null,
-      category:    fd.get('category') || null,
-      area:        fd.get('area') || null,
-      environment: fd.get('environment') || null,
-      ageGroup:    fd.get('ageGroup') || null,
-      hasVehicle:  fd.get('hasVehicle') === 'on',
+      mapUrl:      fd.get('mapUrl')?.trim()      || null,
+      category:    fd.get('category')            || null,
+      area:        fd.get('area')                || null,
+      environment: fd.get('environment')         || null,
+      ageGroup:    fd.get('ageGroup')            || null,
+      hasVehicle:  fd.get('hasVehicle')  === 'on',
       hasCreature: fd.get('hasCreature') === 'on',
-      visited:     fd.get('visited') === 'on',
-      accessMemo:  fd.get('accessMemo')?.trim() || null,
-      memo:        fd.get('memo')?.trim() || null,
+      visited:     fd.get('visited')     === 'on',
+      accessMemo:  fd.get('accessMemo')?.trim()  || null,
+      memo:        fd.get('memo')?.trim()        || null,
     };
 
-    if (!formData.name) { alert('スポット名は必須です'); submitBtn.disabled = false; submitBtn.textContent = '登録する'; return; }
+    if (!formData.name) {
+      alert('スポット名は必須です');
+      submitBtn.disabled = false;
+      submitBtn.textContent = '登録する';
+      return;
+    }
 
     try {
       await createSpot(formData);
+
+      // Optimistic update—画面に即時反映
+      const pending = {
+        id:          `pending-${Date.now()}`,
+        _pending:    true,
+        name:        formData.name,
+        mapUrl:      formData.mapUrl      ?? '',
+        category:    formData.category    ?? '',
+        area:        formData.area        ?? '',
+        accessMemo:  formData.accessMemo  ?? '',
+        environment: formData.environment ?? '',
+        hasVehicle:  formData.hasVehicle,
+        hasCreature: formData.hasCreature,
+        ageGroup:    formData.ageGroup    ?? '',
+        visited:     formData.visited,
+        lastVisit:   '',
+        rating:      null,
+        memo:        formData.memo        ?? '',
+      };
+      allSpots = [pending, ...allSpots];
+      render();
+
       modal.style.display = 'none';
-      await loadData(true);
+      showToast('✅ Notionに登録しました！\n1【2分後にデータが更新されます');
     } catch (err) {
-      alert(`登録に失敗しました:\n${err.message}`);
+      if (err.message === 'GITHUB_TOKEN_NOT_SET') {
+        modal.style.display = 'none';
+        showSettings();
+      } else {
+        alert(`登録に失敗しました：\n${err.message}`);
+      }
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = '登録する';
@@ -321,9 +368,7 @@ async function loadData(forceRefresh = false) {
   const grid       = document.getElementById('cardGrid');
   const refreshBtn = document.getElementById('refreshBtn');
 
-  const { workerUrl } = getConfig();
-  if (!workerUrl) { showSettings(); return; }
-
+  // Settings check only needed for write; reads are public
   loading.innerHTML = '<div class="loading-spinner"></div><p>読み込み中...</p>';
   loading.style.display = 'flex';
   grid.innerHTML = '';
@@ -334,14 +379,15 @@ async function loadData(forceRefresh = false) {
     allSpots = await fetchAllSpots();
     loading.style.display = 'none';
     render();
+
+    // 初回起動時にトークン未設定なら設定画面を表示
+    if (!getConfig().githubToken) showSettings();
   } catch (err) {
     loading.innerHTML = `
       <div class="error-state">
         <p>⚠️ データの読み込みに失敗しました</p>
         <p class="error-detail">${esc(err.message)}</p>
-        <button class="btn btn-secondary" id="retrySettings" style="margin-top:12px">⚙️ 設定を確認</button>
       </div>`;
-    document.getElementById('retrySettings')?.addEventListener('click', showSettings);
   } finally {
     refreshBtn?.classList.remove('spinning');
   }

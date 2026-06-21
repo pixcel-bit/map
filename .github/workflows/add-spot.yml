@@ -1,0 +1,100 @@
+name: Add Spot to Notion
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: 'スポット名'
+        required: true
+        type: string
+      category:
+        description: 'カテゴリ'
+        required: false
+        type: string
+        default: ''
+      area:
+        description: 'エリア'
+        required: false
+        type: string
+        default: ''
+      environment:
+        description: '屋内 / 屋外'
+        required: false
+        type: string
+        default: ''
+      mapUrl:
+        description: 'Google マップ URL'
+        required: false
+        type: string
+        default: ''
+      hasVehicle:
+        description: '乗り物要素あり'
+        required: false
+        type: string
+        default: 'false'
+      hasCreature:
+        description: '虫・生き物要素あり'
+        required: false
+        type: string
+        default: 'false'
+      ageGroup:
+        description: '年齢適性'
+        required: false
+        type: string
+        default: ''
+      visited:
+        description: '行ったことある'
+        required: false
+        type: string
+        default: 'false'
+      accessMemo:
+        description: 'アクセスメモ'
+        required: false
+        type: string
+        default: ''
+      memo:
+        description: 'メモ'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  add-and-refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create Notion page
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_MAP }}
+          NOTION_DATABASE_ID: ${{ secrets.DATABASE_ID }}
+          SPOT_NAME: ${{ inputs.name }}
+          SPOT_CATEGORY: ${{ inputs.category }}
+          SPOT_AREA: ${{ inputs.area }}
+          SPOT_ENVIRONMENT: ${{ inputs.environment }}
+          SPOT_MAP_URL: ${{ inputs.mapUrl }}
+          SPOT_HAS_VEHICLE: ${{ inputs.hasVehicle }}
+          SPOT_HAS_CREATURE: ${{ inputs.hasCreature }}
+          SPOT_AGE_GROUP: ${{ inputs.ageGroup }}
+          SPOT_VISITED: ${{ inputs.visited }}
+          SPOT_ACCESS_MEMO: ${{ inputs.accessMemo }}
+          SPOT_MEMO: ${{ inputs.memo }}
+        run: python3 scripts/add-spot.py
+
+      - name: Refresh data.json from Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_MAP }}
+          NOTION_DATABASE_ID: ${{ secrets.DATABASE_ID }}
+        run: python3 scripts/fetch-notion.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          git diff --staged --quiet || git commit -m "chore: add spot [skip ci]"
+          git push

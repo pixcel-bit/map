@@ -18,12 +18,16 @@
   <div id="settingsModal" class="modal-overlay" style="display:none">
     <div class="modal">
       <h2 class="modal-title">⚙️ 設定</h2>
-      <p class="modal-desc">Cloudflare WorkerのURLを入力してください。<br>設定方法は <code>cloudflare-worker/README.md</code> を参照。</p>
+      <p class="modal-desc">
+        GitHub Personal Access Tokenを入力してください。<br>
+        GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)<br>
+        必要な権限：<code>workflow</code>
+      </p>
       <div class="form-group">
-        <label class="form-label" for="workerUrlInput">Worker URL</label>
-        <input type="url" id="workerUrlInput" class="form-input" placeholder="https://xxxx.workers.dev">
+        <label class="form-label" for="githubTokenInput">GitHub Token</label>
+        <input type="password" id="githubTokenInput" class="form-input" placeholder="ghp_xxxxxxxxxxxx">
       </div>
-      <button class="btn btn-primary" id="saveSettings">保存して開始</button>
+      <button class="btn btn-primary" id="saveSettings">保存</button>
     </div>
   </div>
 
@@ -43,26 +47,17 @@
           <div class="form-group">
             <label class="form-label" for="f-category">カテゴリ</label>
             <select id="f-category" name="category" class="form-select">
-              <option value="">選択してください</option>
-              <option>公園</option>
-              <option>動物園</option>
-              <option>水族館</option>
-              <option>乗り物体験</option>
-              <option>博物館</option>
-              <option>食事</option>
-              <option>その他</option>
+              <option value="">―選択―</option>
+              <option>公園</option><option>動物園</option><option>水族館</option>
+              <option>乗り物体験</option><option>博物館</option><option>食事</option><option>その他</option>
             </select>
           </div>
           <div class="form-group">
             <label class="form-label" for="f-area">エリア</label>
             <select id="f-area" name="area" class="form-select">
-              <option value="">選択してください</option>
-              <option>都内</option>
-              <option>埼玉</option>
-              <option>神奈川</option>
-              <option>千葉</option>
-              <option>群馬</option>
-              <option>その他</option>
+              <option value="">―選択―</option>
+              <option>都内</option><option>埼玉</option><option>神奈川</option>
+              <option>千葉</option><option>群馬</option><option>その他</option>
             </select>
           </div>
         </div>
@@ -70,17 +65,15 @@
           <div class="form-group">
             <label class="form-label" for="f-env">屋内 / 屋外</label>
             <select id="f-env" name="environment" class="form-select">
-              <option value="">選択してください</option>
-              <option>屋内</option>
-              <option>屋外</option>
+              <option value="">―選択―</option>
+              <option>屋内</option><option>屋外</option>
             </select>
           </div>
           <div class="form-group">
             <label class="form-label" for="f-age">年齢適性</label>
             <select id="f-age" name="ageGroup" class="form-select">
-              <option value="">選択してください</option>
-              <option>今向き</option>
-              <option>もう少し大きくなってから</option>
+              <option value="">―選択―</option>
+              <option>今向き</option><option>もう少し大きくなってから</option>
             </select>
           </div>
         </div>
@@ -89,15 +82,9 @@
           <input type="url" id="f-map" name="mapUrl" class="form-input" placeholder="https://maps.google.com/...">
         </div>
         <div class="form-checks">
-          <label class="check-label">
-            <input type="checkbox" name="hasVehicle"> 🚃 乗り物要素あり
-          </label>
-          <label class="check-label">
-            <input type="checkbox" name="hasCreature"> 🐛 虫・生き物要素あり
-          </label>
-          <label class="check-label">
-            <input type="checkbox" name="visited"> ✅ 行ったことある
-          </label>
+          <label class="check-label"><input type="checkbox" name="hasVehicle"> 🚃 乗り物要素あり</label>
+          <label class="check-label"><input type="checkbox" name="hasCreature"> 🐛 虫・生き物要素あり</label>
+          <label class="check-label"><input type="checkbox" name="visited"> ✅ 行ったことある</label>
         </div>
         <div class="form-group">
           <label class="form-label" for="f-access">アクセスメモ</label>
@@ -188,7 +175,6 @@
     <div class="card-grid" id="cardGrid"></div>
   </main>
 
-  <!-- FAB -->
   <button class="fab" id="addBtn" title="スポットを追加">＋</button>
 
   <script src="js/app.js"></script>
