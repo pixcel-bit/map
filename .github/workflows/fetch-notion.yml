@@ -22,9 +22,9 @@ jobs:
       - name: Check secrets
         id: check
         run: |
-          if [ -z "${{ secrets.NOTION_MAP }}" ] || [ -z "${{ secrets.NOTION_DATABASE_ID }}" ]; then
+          if [ -z "${{ secrets.NOTION_MAP }}" ] || [ -z "${{ secrets.DATABASE_ID }}" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::NOTION_MAP または NOTION_DATABASE_ID が未設定です。Settings > Secrets and variables > Actions で登録してください。"
+            echo "::warning::NOTION_MAP または DATABASE_ID が未設定です。Settings > Secrets and variables > Actions で登録してください。"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
@@ -33,7 +33,7 @@ jobs:
         if: steps.check.outputs.skip == 'false'
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_MAP }}
-          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          NOTION_DATABASE_ID: ${{ secrets.DATABASE_ID }}
         run: python3 scripts/fetch-notion.py
 
       - name: Commit updated data
