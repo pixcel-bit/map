@@ -1,89 +1,115 @@
 'use strict';
 
-const DATA_URL = 'data.json';
+const DB_ID = '386b60f29e4580e39941ea594643adc3';
+const CONFIG_KEY = 'ryosei_map_config';
 
 const CATEGORY_ICONS = {
-  '公園': '🌿',
-  '動物園': '🐘',
-  '水族館': '🐠',
-  '乗り物体験': '🚂',
-  '博物館': '🏛️',
-  '食事': '🍜',
-  'その他': '📍',
+  '公園': '🌿', '動物園': '🐘', '水族館': '🐠',
+  '乗り物体験': '🚂', '博物館': '🏛️', '食事': '🍜', 'その他': '📍',
 };
 
-// Filter state
-const filters = {
-  environment: 'all',
-  unvisited: false,
-  category: 'all',
-  area: 'all',
-  ageGroup: 'all',
-};
+const CATEGORIES = ['公園', '動物園', '水族館', '乗り物体験', '博物館', '食事', 'その他'];
+const AREAS      = ['都内', '埼玉', '神奈川', '千葉', '群馬', 'その他'];
+const AGE_GROUPS = ['今向き', 'もう少し大きくなってから'];
 
+const filters = { environment: 'all', unvisited: false, category: 'all', area: 'all', ageGroup: 'all' };
 let allSpots = [];
 
-// === Notion property parsers ===
+// === Config ===
+function getConfig() {
+  try { return JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}'); } catch { return {}; }
+}
+function saveConfig(cfg) { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); }
 
-function title(prop) {
-  return prop?.title?.map(t => t.plain_text).join('') ?? '';
+// === Notion API via Cloudflare Worker ===
+async function notionFetch(path, options = {}) {
+  const { workerUrl } = getConfig();
+  if (!workerUrl) throw new Error('WORKER_URL_NOT_SET');
+  const resp = await fetch(workerUrl.replace(/\/$/, '') + path, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.message || `HTTP ${resp.status}`);
+  }
+  return resp.json();
 }
 
-function select(prop) {
-  return prop?.select?.name ?? '';
+async function fetchAllSpots() {
+  const data = await notionFetch(`/databases/${DB_ID}/query`, {
+    method: 'POST',
+    body: JSON.stringify({
+      sorts: [
+        { property: '行ったことある', direction: 'ascending' },
+        { property: '楽しさ評価',     direction: 'descending' },
+      ],
+      page_size: 100,
+    }),
+  });
+  return (data.results ?? []).map(parseSpot).filter(s => s.name);
 }
 
-function checkbox(prop) {
-  return prop?.checkbox ?? false;
+async function createSpot(formData) {
+  return notionFetch('/pages', {
+    method: 'POST',
+    body: JSON.stringify({
+      parent: { database_id: DB_ID },
+      properties: buildNotionProperties(formData),
+    }),
+  });
 }
 
-function url(prop) {
-  return prop?.url ?? '';
-}
-
-function number(prop) {
-  return prop?.number ?? null;
-}
-
-function richText(prop) {
-  return prop?.rich_text?.map(t => t.plain_text).join('') ?? '';
-}
-
-function date(prop) {
-  return prop?.date?.start ?? '';
-}
+// === Notion property parsers (read) ===
+function title(p)    { return p?.title?.map(t => t.plain_text).join('') ?? ''; }
+function sel(p)      { return p?.select?.name ?? ''; }
+function chk(p)      { return p?.checkbox ?? false; }
+function urlProp(p)  { return p?.url ?? ''; }
+function num(p)      { return p?.number ?? null; }
+function rt(p)       { return p?.rich_text?.map(t => t.plain_text).join('') ?? ''; }
+function dt(p)       { return p?.date?.start ?? ''; }
 
 function parseSpot(page) {
   const p = page.properties ?? {};
   return {
-    id: page.id,
+    id:          page.id,
     name:        title(p['スポット名']),
-    mapUrl:      url(p['Google マップ URL']),
-    category:    select(p['カテゴリ']),
-    area:        select(p['エリア']),
-    accessMemo:  richText(p['アクセスメモ']),
-    environment: select(p['屋内 / 屋外']),
-    hasVehicle:  checkbox(p['乗り物要素あり']),
-    hasCreature: checkbox(p['虫・生き物要素あり']),
-    ageGroup:    select(p['年齢適性']),
-    visited:     checkbox(p['行ったことある']),
-    lastVisit:   date(p['最後に行った日']),
-    rating:      number(p['楽しさ評価']),
-    memo:        richText(p['メモ']),
+    mapUrl:      urlProp(p['Google マップ URL']),
+    category:    sel(p['カテゴリ']),
+    area:        sel(p['エリア']),
+    accessMemo:  rt(p['アクセスメモ']),
+    environment: sel(p['屋内 / 屋外']),
+    hasVehicle:  chk(p['乗り物要素あり']),
+    hasCreature: chk(p['虫・生き物要素あり']),
+    ageGroup:    sel(p['年齢適性']),
+    visited:     chk(p['行ったことある']),
+    lastVisit:   dt(p['最後に行った日']),
+    rating:      num(p['楽しさ評価']),
+    memo:        rt(p['メモ']),
   };
 }
 
-// === Filtering ===
-
-function matchEnv(spot) {
-  if (filters.environment === 'all') return true;
-  // Match even if the stored value is e.g. "屋内（雨・猛暑日OK）"
-  return spot.environment.includes(filters.environment);
+// === Notion property builder (write) ===
+function buildNotionProperties(f) {
+  const p = {};
+  p['スポット名'] = { title: [{ text: { content: f.name } }] };
+  if (f.mapUrl)      p['Google マップ URL'] = { url: f.mapUrl };
+  if (f.category)    p['カテゴリ'] = { select: { name: f.category } };
+  if (f.area)        p['エリア'] = { select: { name: f.area } };
+  if (f.environment) p['屋内 / 屋外'] = { select: { name: f.environment } };
+  p['乗り物要素あり']   = { checkbox: !!f.hasVehicle };
+  p['虫・生き物要素あり'] = { checkbox: !!f.hasCreature };
+  if (f.ageGroup)    p['年齢適性'] = { select: { name: f.ageGroup } };
+  p['行ったことある'] = { checkbox: !!f.visited };
+  if (f.accessMemo)  p['アクセスメモ'] = { rich_text: [{ text: { content: f.accessMemo } }] };
+  if (f.memo)        p['メモ'] = { rich_text: [{ text: { content: f.memo } }] };
+  return p;
 }
 
+// === Filtering ===
 function applyFilters(spots) {
   return spots.filter(spot => {
-    if (!matchEnv(spot)) return false;
+    if (filters.environment !== 'all' && !spot.environment.includes(filters.environment)) return false;
     if (filters.unvisited && spot.visited) return false;
     if (filters.category !== 'all' && spot.category !== filters.category) return false;
     if (filters.area !== 'all' && spot.area !== filters.area) return false;
@@ -93,14 +119,10 @@ function applyFilters(spots) {
 }
 
 // === Rendering ===
-
 function esc(str) {
   return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function safeUrl(raw) {
@@ -108,9 +130,7 @@ function safeUrl(raw) {
   try {
     const u = new URL(raw);
     return (u.protocol === 'https:' || u.protocol === 'http:') ? raw : '';
-  } catch {
-    return '';
-  }
+  } catch { return ''; }
 }
 
 function fmtDate(str) {
@@ -122,9 +142,8 @@ function fmtDate(str) {
 function renderStars(rating) {
   if (rating === null) return '';
   let html = '<div class="rating">';
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 5; i++)
     html += `<span class="star ${i <= rating ? 'on' : 'off'}">${i <= rating ? '★' : '☆'}</span>`;
-  }
   return html + '</div>';
 }
 
@@ -136,17 +155,15 @@ function renderEnvBadge(env) {
 
 function renderCard(spot) {
   const catIcon = CATEGORY_ICONS[spot.category] ?? '📍';
-
   const features = [];
   if (spot.hasVehicle)  features.push('🚃 乗り物');
   if (spot.hasCreature) features.push('🐛 生き物');
 
   let ageBadge = '';
-  if (spot.ageGroup === '今向き') {
+  if (spot.ageGroup === '今向き')
     ageBadge = '<span class="badge badge-age-now">👶 今向き</span>';
-  } else if (spot.ageGroup === 'もう少し大きくなってから') {
+  else if (spot.ageGroup === 'もう少し大きくなってから')
     ageBadge = '<span class="badge badge-age-later">📅 後で</span>';
-  }
 
   const safe = safeUrl(spot.mapUrl);
   const mapBtn = safe
@@ -161,15 +178,7 @@ function renderCard(spot) {
 
   const visitedHtml = spot.visited
     ? `<span class="visited-label">✅ 訪問済${spot.lastVisit ? ' (' + fmtDate(spot.lastVisit) + ')' : ''}</span>`
-    : `<span class="visited-label unvisited">✨ 未訪問</span>`;
-
-  const memoHtml = spot.memo
-    ? `<p class="card-memo">💬 ${esc(spot.memo)}</p>`
-    : '';
-
-  const accessHtml = spot.accessMemo
-    ? `<p class="card-access">🚃 ${esc(spot.accessMemo)}</p>`
-    : '';
+    : '<span class="visited-label unvisited">✨ 未訪問</span>';
 
   return `
 <div class="spot-card${spot.visited ? ' visited' : ''}">
@@ -183,26 +192,21 @@ function renderCard(spot) {
     ${features.map(f => `<span class="badge badge-feature">${esc(f)}</span>`).join('')}
     ${ageBadge}
   </div>
-  ${memoHtml}
-  ${accessHtml}
+  ${spot.memo       ? `<p class="card-memo">💬 ${esc(spot.memo)}</p>` : ''}
+  ${spot.accessMemo ? `<p class="card-access">🚃 ${esc(spot.accessMemo)}</p>` : ''}
   <div class="card-footer">
-    <div class="footer-left">
-      ${visitedHtml}
-      ${renderStars(spot.rating)}
-    </div>
+    <div class="footer-left">${visitedHtml}${renderStars(spot.rating)}</div>
     ${mapBtn}
   </div>
 </div>`;
 }
 
 function render() {
-  const grid     = document.getElementById('cardGrid');
-  const empty    = document.getElementById('emptyState');
-  const countEl  = document.getElementById('spotCount');
-
+  const grid    = document.getElementById('cardGrid');
+  const empty   = document.getElementById('emptyState');
+  const countEl = document.getElementById('spotCount');
   const filtered = applyFilters(allSpots);
   countEl.textContent = `${filtered.length}件`;
-
   if (filtered.length === 0) {
     grid.innerHTML = '';
     empty.style.display = 'flex';
@@ -212,80 +216,122 @@ function render() {
   }
 }
 
-// === Filter event wiring ===
-
+// === Filters ===
 function setupFilters() {
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const type  = btn.dataset.filter;
       const value = btn.dataset.value;
-
       if (type === 'unvisited') {
         filters.unvisited = !filters.unvisited;
         btn.classList.toggle('active', filters.unvisited);
       } else {
         filters[type] = value;
-        document.querySelectorAll(`.filter-btn[data-filter="${type}"]`).forEach(b => {
-          b.classList.toggle('active', b.dataset.value === value);
-        });
+        document.querySelectorAll(`.filter-btn[data-filter="${type}"]`).forEach(b =>
+          b.classList.toggle('active', b.dataset.value === value));
       }
-
       render();
     });
   });
-
   document.getElementById('resetFilters')?.addEventListener('click', resetAllFilters);
-
-  document.getElementById('refreshBtn')?.addEventListener('click', () => {
-    loadData(true);
-  });
+  document.getElementById('refreshBtn')?.addEventListener('click', () => loadData(true));
 }
 
 function resetAllFilters() {
-  filters.environment = 'all';
-  filters.unvisited   = false;
-  filters.category    = 'all';
-  filters.area        = 'all';
-  filters.ageGroup    = 'all';
-
+  filters.environment = 'all'; filters.unvisited = false;
+  filters.category = 'all'; filters.area = 'all'; filters.ageGroup = 'all';
   document.querySelectorAll('.filter-btn').forEach(btn => {
     const isDefault = btn.dataset.value === 'all';
     const isToggle  = btn.dataset.filter === 'unvisited';
     btn.classList.toggle('active', isDefault && !isToggle);
     if (isToggle) btn.classList.remove('active');
   });
-
   render();
 }
 
-// === Data loading ===
+// === Settings Modal ===
+function showSettings() {
+  const modal = document.getElementById('settingsModal');
+  const input = document.getElementById('workerUrlInput');
+  input.value = getConfig().workerUrl ?? '';
+  modal.style.display = 'flex';
+}
 
+function setupSettings() {
+  document.getElementById('saveSettings').addEventListener('click', () => {
+    const url = document.getElementById('workerUrlInput').value.trim();
+    if (!url) { alert('Worker URLを入力してください'); return; }
+    saveConfig({ ...getConfig(), workerUrl: url });
+    document.getElementById('settingsModal').style.display = 'none';
+    loadData();
+  });
+  document.getElementById('settingsBtn').addEventListener('click', showSettings);
+}
+
+// === Add Spot Modal ===
+function setupAddModal() {
+  const modal   = document.getElementById('addModal');
+  const fab     = document.getElementById('addBtn');
+  const closeBtn = document.getElementById('closeAddModal');
+  const form    = document.getElementById('addForm');
+
+  fab.addEventListener('click', () => { form.reset(); modal.style.display = 'flex'; });
+  closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
+  modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const submitBtn = form.querySelector('.btn-submit');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '登録中...';
+
+    const fd = new FormData(form);
+    const formData = {
+      name:        fd.get('name')?.trim(),
+      mapUrl:      fd.get('mapUrl')?.trim() || null,
+      category:    fd.get('category') || null,
+      area:        fd.get('area') || null,
+      environment: fd.get('environment') || null,
+      ageGroup:    fd.get('ageGroup') || null,
+      hasVehicle:  fd.get('hasVehicle') === 'on',
+      hasCreature: fd.get('hasCreature') === 'on',
+      visited:     fd.get('visited') === 'on',
+      accessMemo:  fd.get('accessMemo')?.trim() || null,
+      memo:        fd.get('memo')?.trim() || null,
+    };
+
+    if (!formData.name) { alert('スポット名は必須です'); submitBtn.disabled = false; submitBtn.textContent = '登録する'; return; }
+
+    try {
+      await createSpot(formData);
+      modal.style.display = 'none';
+      await loadData(true);
+    } catch (err) {
+      alert(`登録に失敗しました:\n${err.message}`);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '登録する';
+    }
+  });
+}
+
+// === Data loading ===
 async function loadData(forceRefresh = false) {
   const loading    = document.getElementById('loadingState');
   const grid       = document.getElementById('cardGrid');
   const refreshBtn = document.getElementById('refreshBtn');
 
+  const { workerUrl } = getConfig();
+  if (!workerUrl) { showSettings(); return; }
+
+  loading.innerHTML = '<div class="loading-spinner"></div><p>読み込み中...</p>';
   loading.style.display = 'flex';
   grid.innerHTML = '';
   document.getElementById('emptyState').style.display = 'none';
   refreshBtn?.classList.add('spinning');
 
   try {
-    const cacheBust = forceRefresh ? `?t=${Date.now()}` : '';
-    const resp = await fetch(DATA_URL + cacheBust);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-
-    allSpots = (data.results ?? [])
-      .map(parseSpot)
-      .filter(s => s.name)
-      .sort((a, b) => {
-        // Unvisited first, then by rating desc, then name asc
-        if (a.visited !== b.visited) return a.visited ? 1 : -1;
-        if ((b.rating ?? 0) !== (a.rating ?? 0)) return (b.rating ?? 0) - (a.rating ?? 0);
-        return a.name.localeCompare(b.name, 'ja');
-      });
-
+    allSpots = await fetchAllSpots();
     loading.style.display = 'none';
     render();
   } catch (err) {
@@ -293,14 +339,16 @@ async function loadData(forceRefresh = false) {
       <div class="error-state">
         <p>⚠️ データの読み込みに失敗しました</p>
         <p class="error-detail">${esc(err.message)}</p>
-        <p class="error-detail" style="margin-top:8px">GitHub Actions でデータを取得してから再読み込みしてください</p>
+        <button class="btn btn-secondary" id="retrySettings" style="margin-top:12px">⚙️ 設定を確認</button>
       </div>`;
+    document.getElementById('retrySettings')?.addEventListener('click', showSettings);
   } finally {
     refreshBtn?.classList.remove('spinning');
   }
 }
 
 // === Boot ===
-
 setupFilters();
+setupSettings();
+setupAddModal();
 loadData();
