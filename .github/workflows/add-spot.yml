@@ -9,6 +9,15 @@ on:
       mapUrl:
         description: 'Google マップ URL'
         required: false
+        default: ''
+      lat:
+        description: '緯度 (URLから自動抽出)'
+        required: false
+        default: ''
+      lng:
+        description: '経度 (URLから自動抽出)'
+        required: false
+        default: ''
       category:
         description: 'カテゴリ'
         required: false
@@ -42,6 +51,8 @@ jobs:
           NOTION_DATABASE_ID: ${{ secrets.DATABASE_ID }}
           SPOT_NAME: ${{ inputs.spotName }}
           SPOT_MAP_URL: ${{ inputs.mapUrl }}
+          SPOT_LAT: ${{ inputs.lat }}
+          SPOT_LNG: ${{ inputs.lng }}
           SPOT_CATEGORY: ${{ inputs.category }}
           SPOT_AREA: ${{ inputs.area }}
           SPOT_ENVIRONMENT: ${{ inputs.environment }}

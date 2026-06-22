@@ -60,6 +60,19 @@ async function callWorkflow(workflow, inputs) {
   return true;
 }
 
+// === Coord extraction from Google Maps URL ===
+
+function extractCoordsFromMapUrl(mapUrl) {
+  if (!mapUrl) return { lat: '', lng: '' };
+  let m = mapUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (m) return { lat: m[1], lng: m[2] };
+  m = mapUrl.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (m) return { lat: m[1], lng: m[2] };
+  m = mapUrl.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (m) return { lat: m[1], lng: m[2] };
+  return { lat: '', lng: '' };
+}
+
 // === Notion property parsers ===
 
 function title(prop) {
@@ -400,9 +413,12 @@ function setupAddSpot() {
   form?.addEventListener('submit', async e => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(form));
+    const { lat, lng } = extractCoordsFromMapUrl(data.mapUrl);
     const ok = await callWorkflow(ADD_WORKFLOW, {
       spotName:    data.spotName || '',
       mapUrl:      data.mapUrl || '',
+      lat,
+      lng,
       category:    data.category || '',
       area:        data.area || '',
       environment: data.environment || '',

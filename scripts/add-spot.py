@@ -17,6 +17,8 @@ def main() -> None:
 
     name        = os.environ.get("SPOT_NAME", "").strip()
     map_url     = os.environ.get("SPOT_MAP_URL", "").strip()
+    lat         = os.environ.get("SPOT_LAT", "").strip()
+    lng         = os.environ.get("SPOT_LNG", "").strip()
     category    = os.environ.get("SPOT_CATEGORY", "").strip()
     area        = os.environ.get("SPOT_AREA", "").strip()
     environment = os.environ.get("SPOT_ENVIRONMENT", "").strip()
@@ -26,6 +28,14 @@ def main() -> None:
     if not name:
         print("Error: SPOT_NAME is required.", file=sys.stderr)
         sys.exit(1)
+
+    # If coordinates were extracted client-side, normalize the URL to ?q=lat,lng
+    # so fetch-notion.py can extract coords without external geocoding
+    if lat and lng:
+        map_url = f"https://maps.google.com/?q={lat},{lng}"
+        print(f"Coordinates provided: {lat},{lng} -> stored as {map_url}")
+    elif map_url:
+        print(f"No coordinates extracted, storing original URL: {map_url}")
 
     props = {
         "スポット名": {"title": [{"text": {"content": name}}]},

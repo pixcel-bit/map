@@ -4,7 +4,6 @@ import json
 import os
 import re
 import sys
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -16,26 +15,6 @@ HOME_LAT = 35.7317
 HOME_LNG = 139.6878
 
 
-def photon_geocode(query):
-    """Geocode using Photon (Komoot) — free, no key, OSM-based."""
-    encoded = urllib.parse.quote(query)
-    url = f"https://photon.komoot.io/api/?q={encoded}&limit=1"
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": "ryosei-map/1.0 (github.com/pixcel-bit/map)"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        features = data.get("features", [])
-        if features:
-            coords = features[0]["geometry"]["coordinates"]
-            return float(coords[1]), float(coords[0])  # lat, lng
-    except Exception as e:
-        print(f"  photon error for '{query}': {e}", file=sys.stderr)
-    return None, None
-
-
 def extract_coords_from_url(map_url):
     if not map_url:
         return None, None
@@ -43,7 +22,7 @@ def extract_coords_from_url(map_url):
     m = re.search(r"@(-?\d+\.\d+),(-?\d+\.\d+)", map_url)
     if m:
         return float(m.group(1)), float(m.group(2))
-    # ?q=lat,lng or &q=lat,lng pattern
+    # ?q=lat,lng or &q=lat,lng pattern (stored by add-spot.py)
     m = re.search(r"[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)", map_url)
     if m:
         return float(m.group(1)), float(m.group(2))
@@ -142,16 +121,8 @@ def enrich_travel(pages):
         for t in props.get("スポット名", {}).get("title", []):
             name += t.get("plain_text", "")
 
-        area = props.get("エリア", {}).get("select", {}).get("name", "")
         map_url = props.get("Google マップ URL", {}).get("url", "")
-
         dest_lat, dest_lng = extract_coords_from_url(map_url)
-
-        if dest_lat is None and name:
-            query = f"{name} {area}".strip()
-            print(f"  Geocoding '{query}' via Photon...")
-            time.sleep(1)
-            dest_lat, dest_lng = photon_geocode(query)
 
         if dest_lat is not None:
             print(f"  {name}: coords={dest_lat},{dest_lng}")
@@ -160,7 +131,7 @@ def enrich_travel(pages):
             page["_transit_url"] = make_transit_url(dest_lat, dest_lng)
             page["_car_dir_url"] = make_car_dir_url(dest_lat, dest_lng)
         else:
-            print(f"  {name}: could not determine coords, skipping travel time", file=sys.stderr)
+            print(f"  {name}: no coords in URL, travel time unavailable")
             page["_car_minutes"] = None
             page["_transit_url"] = None
             page["_car_dir_url"] = None
