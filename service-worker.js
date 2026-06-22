@@ -1,4 +1,4 @@
-const CACHE = 'ryosei-map-v1';
+const CACHE = 'ryosei-map-v3';
 
 const PRECACHE = [
   './',
