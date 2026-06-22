@@ -1,0 +1,33 @@
+name: Generate PNG icons from SVG
+
+on:
+  push:
+    paths:
+      - 'icons/icon.svg'
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install rsvg-convert
+        run: sudo apt-get install -y librsvg2-bin
+
+      - name: Generate PNGs
+        run: |
+          rsvg-convert -w 192  -h 192  icons/icon.svg -o icons/icon-192.png
+          rsvg-convert -w 512  -h 512  icons/icon.svg -o icons/icon-512.png
+          rsvg-convert -w 512  -h 512  icons/icon.svg -o icons/icon-maskable.png
+
+      - name: Commit
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add icons/icon-192.png icons/icon-512.png icons/icon-maskable.png
+          git diff --staged --quiet || git commit -m "chore: regenerate PNG icons from SVG [skip ci]"
+          git push
