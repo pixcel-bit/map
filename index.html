@@ -83,12 +83,11 @@
         </div>
         <div class="form-checks">
           <label class="check-label"><input type="checkbox" name="hasVehicle"> 🚃 乗り物要素あり</label>
-          <label class="check-label"><input type="checkbox" name="hasCreature"> 🐛 虫・生き物要素あり</label>
           <label class="check-label"><input type="checkbox" name="visited"> ✅ 行ったことある</label>
         </div>
         <div class="form-group">
           <label class="form-label" for="f-access">アクセスメモ</label>
-          <input type="text" id="f-access" name="accessMemo" class="form-input" placeholder="例：○○駅から徒歩10分">
+          <input type="text" id="f-access" name="accessMemo" class="form-input" placeholder="例：○○駅から徒歅10分">
         </div>
         <div class="form-group">
           <label class="form-label" for="f-memo">メモ</label>
@@ -96,6 +95,20 @@
         </div>
         <button type="submit" class="btn btn-primary btn-submit">登録する</button>
       </form>
+    </div>
+  </div>
+
+  <!-- Comment Modal -->
+  <div id="commentModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">💬 コメント編集</h2>
+        <button class="modal-close" id="closeCommentModal">✕</button>
+      </div>
+      <div class="form-group" style="margin-top:8px">
+        <textarea id="commentText" class="form-textarea" rows="4" placeholder="感想・メモなど（500文字まで）" maxlength="500"></textarea>
+      </div>
+      <button class="btn btn-primary" id="saveComment">保存</button>
     </div>
   </div>
 
@@ -115,7 +128,7 @@
         <button class="settings-btn" id="settingsBtn" title="設定">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
         </button>
       </div>

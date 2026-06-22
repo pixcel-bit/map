@@ -1,9 +1,10 @@
 'use strict';
 
-const REPO         = 'pixcel-bit/map';
-const DATA_URL     = `https://raw.githubusercontent.com/${REPO}/main/data.json`;
-const ADD_WORKFLOW = 'add-spot.yml';
-const CONFIG_KEY   = 'ryosei_map_config';
+const REPO            = 'pixcel-bit/map';
+const DATA_URL        = `https://raw.githubusercontent.com/${REPO}/main/data.json`;
+const ADD_WORKFLOW    = 'add-spot.yml';
+const UPDATE_WORKFLOW = 'update-spot.yml';
+const CONFIG_KEY      = 'ryosei_map_config';
 
 const CATEGORY_ICONS = {
   '公園': '🌿', '動物園': '🐘', '水族館': '🐠',
@@ -12,6 +13,7 @@ const CATEGORY_ICONS = {
 
 const filters = { environment: 'all', unvisited: false, category: 'all', area: 'all', ageGroup: 'all' };
 let allSpots = [];
+let currentCommentSpotId = null;
 
 // === Config ===
 function getConfig() {
@@ -19,7 +21,29 @@ function getConfig() {
 }
 function saveConfig(cfg) { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); }
 
-// === Data fetch (raw.githubusercontent.com → CORS OK) ===
+// === GitHub API helper ===
+async function callWorkflow(workflow, inputs) {
+  const { githubToken } = getConfig();
+  if (!githubToken) throw new Error('GITHUB_TOKEN_NOT_SET');
+
+  const resp = await fetch(
+    `https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `token ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ref: 'main', inputs }),
+    }
+  );
+  if (resp.status === 401) throw new Error('トークンが無効です。設定を確認してください');
+  if (resp.status === 404) throw new Error('ワークフローが見つかりません');
+  if (!resp.ok) throw new Error(`GitHub API error: ${resp.status}`);
+}
+
+// === Data fetch ===
 async function fetchAllSpots() {
   const resp = await fetch(`${DATA_URL}?t=${Date.now()}`);
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -34,53 +58,14 @@ async function fetchAllSpots() {
     });
 }
 
-// === Spot creation (GitHub API workflow_dispatch → CORS OK) ===
-async function createSpot(formData) {
-  const { githubToken } = getConfig();
-  if (!githubToken) throw new Error('GITHUB_TOKEN_NOT_SET');
-
-  const resp = await fetch(
-    `https://api.github.com/repos/${REPO}/actions/workflows/${ADD_WORKFLOW}/dispatches`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `token ${githubToken}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        ref: 'main',
-        inputs: {
-          name:        formData.name,
-          category:    formData.category    || '',
-          area:        formData.area        || '',
-          environment: formData.environment || '',
-          mapUrl:      formData.mapUrl      || '',
-          hasVehicle:  formData.hasVehicle  ? 'true' : 'false',
-          hasCreature: formData.hasCreature ? 'true' : 'false',
-          ageGroup:    formData.ageGroup    || '',
-          visited:     formData.visited     ? 'true' : 'false',
-          accessMemo:  formData.accessMemo  || '',
-          memo:        formData.memo        || '',
-        },
-      }),
-    }
-  );
-
-  if (resp.status === 401) throw new Error('トークンが無効です。設定を確認してください');
-  if (resp.status === 404) throw new Error('ワークフローが見つかりません。リポジトリを確認してください');
-  if (!resp.ok) throw new Error(`GitHub API error: ${resp.status}`);
-  // 204 No Content = success
-}
-
 // === Notion property parsers ===
-function title(p)   { return p?.title?.map(t => t.plain_text).join('') ?? ''; }
-function sel(p)     { return p?.select?.name ?? ''; }
-function chk(p)     { return p?.checkbox ?? false; }
-function urlP(p)    { return p?.url ?? ''; }
-function num(p)     { return p?.number ?? null; }
-function rt(p)      { return p?.rich_text?.map(t => t.plain_text).join('') ?? ''; }
-function dt(p)      { return p?.date?.start ?? ''; }
+function title(p)  { return p?.title?.map(t => t.plain_text).join('') ?? ''; }
+function sel(p)    { return p?.select?.name ?? ''; }
+function chk(p)    { return p?.checkbox ?? false; }
+function urlP(p)   { return p?.url ?? ''; }
+function num(p)    { return p?.number ?? null; }
+function rt(p)     { return p?.rich_text?.map(t => t.plain_text).join('') ?? ''; }
+function dt(p)     { return p?.date?.start ?? ''; }
 
 function parseSpot(page) {
   const p = page.properties ?? {};
@@ -93,12 +78,14 @@ function parseSpot(page) {
     accessMemo:  rt(p['アクセスメモ']),
     environment: sel(p['屋内 / 屋外']),
     hasVehicle:  chk(p['乗り物要素あり']),
-    hasCreature: chk(p['虫・生き物要素あり']),
     ageGroup:    sel(p['年齢適性']),
     visited:     chk(p['行ったことある']),
     lastVisit:   dt(p['最後に行った日']),
     rating:      num(p['楽しさ評価']),
     memo:        rt(p['メモ']),
+    carMinutes:  page._car_minutes ?? null,
+    transitUrl:  page._transit_url ?? null,
+    carDirUrl:   page._car_dir_url  ?? null,
   };
 }
 
@@ -152,8 +139,7 @@ function renderEnvBadge(env) {
 function renderCard(spot) {
   const catIcon = CATEGORY_ICONS[spot.category] ?? '📍';
   const features = [];
-  if (spot.hasVehicle)  features.push('🚃 乗り物');
-  if (spot.hasCreature) features.push('🐛 生き物');
+  if (spot.hasVehicle) features.push('🚃 乗り物');
 
   let ageBadge = '';
   if (spot.ageGroup === '今向き')
@@ -172,13 +158,37 @@ function renderCard(spot) {
       </a>`
     : '';
 
-  const visitedHtml = spot.visited
-    ? `<span class="visited-label">✅ 訪問済${spot.lastVisit ? ' (' + fmtDate(spot.lastVisit) + ')' : ''}</span>`
-    : '<span class="visited-label unvisited">✨ 未訪問</span>';
-
   const pendingBadge = spot._pending
     ? '<span class="badge badge-pending">⏳ Notion反映中</span>'
     : '';
+
+  // Travel time row
+  let travelHtml = '';
+  if (spot.carMinutes || spot.transitUrl) {
+    const carPart = spot.carMinutes
+      ? `<a href="${esc(spot.carDirUrl || '#')}" target="_blank" rel="noopener" class="travel-link travel-car">🚗 紎${spot.carMinutes}分</a>`
+      : '';
+    const transitPart = spot.transitUrl
+      ? `<a href="${esc(spot.transitUrl)}" target="_blank" rel="noopener" class="travel-link travel-transit">🚃 ルート</a>`
+      : '';
+    if (carPart || transitPart) {
+      travelHtml = `<div class="card-travel">${carPart}${transitPart}</div>`;
+    }
+  }
+
+  // Action buttons (not for pending spots)
+  const visitedBtn = spot._pending ? '' :
+    `<button class="btn-action btn-visited${spot.visited ? ' is-visited' : ''}" data-id="${esc(spot.id)}" title="${spot.visited ? '未訪問に戻す' : '訪問済みにする'}">
+      ${spot.visited ? '✅' : '⬜'}
+    </button>`;
+
+  const commentBtn = spot._pending ? '' :
+    `<button class="btn-action btn-comment" data-id="${esc(spot.id)}" title="コメントを編集">💬</button>`;
+
+  const lastVisitText = spot.visited && spot.lastVisit ? ` (${fmtDate(spot.lastVisit)})` : '';
+  const visitedLabel = spot.visited
+    ? `<span class="visited-label">✅ 訪問済${lastVisitText}</span>`
+    : '<span class="visited-label unvisited">✨ 未訪問</span>';
 
   return `
 <div class="spot-card${spot.visited ? ' visited' : ''}${spot._pending ? ' pending' : ''}">
@@ -193,11 +203,16 @@ function renderCard(spot) {
     ${ageBadge}
     ${pendingBadge}
   </div>
+  ${travelHtml}
   ${spot.memo       ? `<p class="card-memo">💬 ${esc(spot.memo)}</p>` : ''}
   ${spot.accessMemo ? `<p class="card-access">🚃 ${esc(spot.accessMemo)}</p>` : ''}
   <div class="card-footer">
-    <div class="footer-left">${visitedHtml}${renderStars(spot.rating)}</div>
-    ${mapBtn}
+    <div class="footer-left">${visitedLabel}${renderStars(spot.rating)}</div>
+    <div class="footer-actions">
+      ${visitedBtn}
+      ${commentBtn}
+      ${mapBtn}
+    </div>
   </div>
 </div>`;
 }
@@ -309,7 +324,6 @@ function setupAddModal() {
       environment: fd.get('environment')         || null,
       ageGroup:    fd.get('ageGroup')            || null,
       hasVehicle:  fd.get('hasVehicle')  === 'on',
-      hasCreature: fd.get('hasCreature') === 'on',
       visited:     fd.get('visited')     === 'on',
       accessMemo:  fd.get('accessMemo')?.trim()  || null,
       memo:        fd.get('memo')?.trim()        || null,
@@ -323,9 +337,19 @@ function setupAddModal() {
     }
 
     try {
-      await createSpot(formData);
+      await callWorkflow(ADD_WORKFLOW, {
+        name:        formData.name,
+        category:    formData.category    || '',
+        area:        formData.area        || '',
+        environment: formData.environment || '',
+        mapUrl:      formData.mapUrl      || '',
+        hasVehicle:  formData.hasVehicle  ? 'true' : 'false',
+        ageGroup:    formData.ageGroup    || '',
+        visited:     formData.visited     ? 'true' : 'false',
+        accessMemo:  formData.accessMemo  || '',
+        memo:        formData.memo        || '',
+      });
 
-      // Optimistic update—画面に即時反映
       const pending = {
         id:          `pending-${Date.now()}`,
         _pending:    true,
@@ -336,18 +360,20 @@ function setupAddModal() {
         accessMemo:  formData.accessMemo  ?? '',
         environment: formData.environment ?? '',
         hasVehicle:  formData.hasVehicle,
-        hasCreature: formData.hasCreature,
         ageGroup:    formData.ageGroup    ?? '',
         visited:     formData.visited,
         lastVisit:   '',
         rating:      null,
         memo:        formData.memo        ?? '',
+        carMinutes:  null,
+        transitUrl:  null,
+        carDirUrl:   null,
       };
       allSpots = [pending, ...allSpots];
       render();
 
       modal.style.display = 'none';
-      showToast('✅ Notionに登録しました！\n1【2分後にデータが更新されます');
+      showToast('✅ Notionに登録しました！\n1。2分後にデータが更新されます');
     } catch (err) {
       if (err.message === 'GITHUB_TOKEN_NOT_SET') {
         modal.style.display = 'none';
@@ -362,13 +388,90 @@ function setupAddModal() {
   });
 }
 
+// === Comment Modal ===
+function setupCommentModal() {
+  const modal = document.getElementById('commentModal');
+  document.getElementById('closeCommentModal').addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+  modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+
+  document.getElementById('saveComment').addEventListener('click', async () => {
+    const memo = document.getElementById('commentText').value.trim();
+    const btn  = document.getElementById('saveComment');
+    btn.disabled = true;
+    btn.textContent = '保存中...';
+    try {
+      await callWorkflow(UPDATE_WORKFLOW, {
+        spotId: currentCommentSpotId,
+        memo:   memo || '',
+      });
+      const spot = allSpots.find(s => s.id === currentCommentSpotId);
+      if (spot) { spot.memo = memo; render(); }
+      modal.style.display = 'none';
+      showToast('💬 コメントを保存しました！\n1。2分後に反映されます');
+    } catch (err) {
+      if (err.message === 'GITHUB_TOKEN_NOT_SET') { modal.style.display = 'none'; showSettings(); }
+      else alert(`保存失敗：\n${err.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '保存';
+    }
+  });
+}
+
+// === Card action event delegation ===
+function setupCardActions() {
+  document.getElementById('cardGrid').addEventListener('click', async e => {
+    // Visited toggle
+    const visitedBtn = e.target.closest('.btn-visited');
+    if (visitedBtn) {
+      const spotId = visitedBtn.dataset.id;
+      const spot = allSpots.find(s => s.id === spotId);
+      if (!spot || spot._pending) return;
+      if (!getConfig().githubToken) { showSettings(); return; }
+
+      const newVisited = !spot.visited;
+      visitedBtn.textContent = '⏳';
+      visitedBtn.disabled = true;
+      try {
+        await callWorkflow(UPDATE_WORKFLOW, {
+          spotId,
+          visited: newVisited ? 'true' : 'false',
+        });
+        spot.visited = newVisited;
+        render();
+        showToast(newVisited ? '✅ 訪問済みにしました！' : '⬜ 未訪問に戻しました');
+      } catch (err) {
+        if (err.message === 'GITHUB_TOKEN_NOT_SET') showSettings();
+        else alert(`更新失敗：\n${err.message}`);
+        visitedBtn.textContent = spot.visited ? '✅' : '⬜';
+        visitedBtn.disabled = false;
+      }
+      return;
+    }
+
+    // Comment button
+    const commentBtn = e.target.closest('.btn-comment');
+    if (commentBtn) {
+      const spotId = commentBtn.dataset.id;
+      const spot = allSpots.find(s => s.id === spotId);
+      if (!spot || spot._pending) return;
+      if (!getConfig().githubToken) { showSettings(); return; }
+
+      currentCommentSpotId = spotId;
+      document.getElementById('commentText').value = spot.memo || '';
+      document.getElementById('commentModal').style.display = 'flex';
+    }
+  });
+}
+
 // === Data loading ===
 async function loadData(forceRefresh = false) {
   const loading    = document.getElementById('loadingState');
   const grid       = document.getElementById('cardGrid');
   const refreshBtn = document.getElementById('refreshBtn');
 
-  // Settings check only needed for write; reads are public
   loading.innerHTML = '<div class="loading-spinner"></div><p>読み込み中...</p>';
   loading.style.display = 'flex';
   grid.innerHTML = '';
@@ -379,8 +482,6 @@ async function loadData(forceRefresh = false) {
     allSpots = await fetchAllSpots();
     loading.style.display = 'none';
     render();
-
-    // 初回起動時にトークン未設定なら設定画面を表示
     if (!getConfig().githubToken) showSettings();
   } catch (err) {
     loading.innerHTML = `
@@ -397,4 +498,6 @@ async function loadData(forceRefresh = false) {
 setupFilters();
 setupSettings();
 setupAddModal();
+setupCommentModal();
+setupCardActions();
 loadData();

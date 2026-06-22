@@ -125,17 +125,45 @@ body {
 .badge-age-later{ background: #f3f4f6; color: var(--text-muted); }
 .badge-pending  { background: #fef3c7; color: #b45309; }
 
-.card-memo { font-size: 12px; color: var(--text-muted); line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* === Travel Time === */
+.card-travel { display: flex; gap: 8px; margin-bottom: 8px; }
+.travel-link {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 8px;
+  text-decoration: none; transition: background 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.travel-car     { background: #fff7ed; color: #c2410c; }
+.travel-car:active { background: #fed7aa; }
+.travel-transit { background: #eff6ff; color: #1d4ed8; }
+.travel-transit:active { background: #bfdbfe; }
+
+.card-memo { font-size: 12px; color: var(--text-muted); line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px; }
 .card-access { font-size: 11px; color: var(--text-muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); gap: 8px; }
 .footer-left { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.footer-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
 .visited-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 .visited-label.unvisited { color: var(--accent); font-weight: 700; }
 .rating { display: flex; gap: 1px; }
 .star { font-size: 13px; }
 .star.on  { color: #f59e0b; }
 .star.off { color: #d1d5db; }
+
+/* === Card Action Buttons === */
+.btn-action {
+  background: #f3f4f6; border: none; border-radius: 8px;
+  width: 34px; height: 34px; font-size: 16px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.12s;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+.btn-action:active { background: #e5e7eb; transform: scale(0.92); }
+.btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-visited.is-visited { background: #dcfce7; }
 
 .map-link {
   display: inline-flex; align-items: center; gap: 4px;

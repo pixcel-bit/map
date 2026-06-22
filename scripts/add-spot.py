@@ -30,8 +30,7 @@ category    = os.environ.get('SPOT_CATEGORY', '').strip()
 area        = os.environ.get('SPOT_AREA', '').strip()
 environment = os.environ.get('SPOT_ENVIRONMENT', '').strip()
 map_url     = os.environ.get('SPOT_MAP_URL', '').strip()
-has_vehicle  = os.environ.get('SPOT_HAS_VEHICLE', 'false') == 'true'
-has_creature = os.environ.get('SPOT_HAS_CREATURE', 'false') == 'true'
+has_vehicle = os.environ.get('SPOT_HAS_VEHICLE', 'false') == 'true'
 age_group   = os.environ.get('SPOT_AGE_GROUP', '').strip()
 visited     = os.environ.get('SPOT_VISITED', 'false') == 'true'
 access_memo = os.environ.get('SPOT_ACCESS_MEMO', '').strip()
@@ -41,18 +40,17 @@ if not name:
     raise ValueError('SPOT_NAME is required')
 
 props = {
-    'スポット名':       {'title': [{'text': {'content': name}}]},
-    '乗り物要素あり':   {'checkbox': has_vehicle},
-    '虫・生き物要素あり': {'checkbox': has_creature},
-    '行ったことある':   {'checkbox': visited},
+    'スポット名':     {'title': [{'text': {'content': name}}]},
+    '乗り物要素あり': {'checkbox': has_vehicle},
+    '行ったことある': {'checkbox': visited},
 }
-if map_url:      props['Google マップ URL'] = {'url': map_url}
-if category:     props['カテゴリ']          = {'select': {'name': category}}
-if area:         props['エリア']            = {'select': {'name': area}}
-if environment:  props['屋内 / 屋外']       = {'select': {'name': environment}}
-if age_group:    props['年齢適性']          = {'select': {'name': age_group}}
-if access_memo:  props['アクセスメモ']      = {'rich_text': rich_text(access_memo)}
-if memo:         props['メモ']             = {'rich_text': rich_text(memo)}
+if map_url:     props['Google マップ URL'] = {'url': map_url}
+if category:    props['カテゴリ']         = {'select': {'name': category}}
+if area:        props['エリア']            = {'select': {'name': area}}
+if environment: props['屋内 / 屋外']      = {'select': {'name': environment}}
+if age_group:   props['年齢適性']          = {'select': {'name': age_group}}
+if access_memo: props['アクセスメモ']      = {'rich_text': rich_text(access_memo)}
+if memo:        props['メモ']             = {'rich_text': rich_text(memo)}
 
 page = notion_post('/pages', {
     'parent': {'database_id': db_id},

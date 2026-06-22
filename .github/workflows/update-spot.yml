@@ -1,0 +1,52 @@
+name: Update Spot in Notion
+
+on:
+  workflow_dispatch:
+    inputs:
+      spotId:
+        description: 'Notion Page ID'
+        required: true
+        type: string
+      visited:
+        description: '行ったことある (true/false または空プランクで変更なし)'
+        required: false
+        type: string
+        default: ''
+      memo:
+        description: 'メモ (__SKIP__ で変更なし)'
+        required: false
+        type: string
+        default: '__SKIP__'
+
+jobs:
+  update-and-refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update Notion page
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_MAP }}
+          SPOT_ID: ${{ inputs.spotId }}
+          SPOT_VISITED: ${{ inputs.visited }}
+          SPOT_MEMO: ${{ inputs.memo }}
+        run: python3 scripts/update-spot.py
+
+      - name: Refresh data.json from Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_MAP }}
+          NOTION_DATABASE_ID: ${{ secrets.DATABASE_ID }}
+        run: python3 scripts/fetch-notion.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          git diff --staged --quiet || git commit -m "chore: update spot [skip ci]"
+          git pull --rebase origin main
+          git push
