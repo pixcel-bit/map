@@ -352,6 +352,7 @@ function setupSettings() {
 
   settingsBtn?.addEventListener('click', () => {
     input.value = getToken();
+    input.type = 'password';
     modal.style.display = 'flex';
   });
 
@@ -366,6 +367,12 @@ function setupSettings() {
   saveBtn?.addEventListener('click', () => {
     localStorage.setItem('ryosei_map_config', input.value.trim());
     modal.style.display = 'none';
+  });
+
+  document.getElementById('toggleToken')?.addEventListener('click', () => {
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    document.getElementById('toggleToken').textContent = isHidden ? '🙈' : '👁';
   });
 }
 
