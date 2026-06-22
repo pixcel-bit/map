@@ -27,7 +27,7 @@ jobs:
 
       - name: Update spot in Notion
         env:
-          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_MAP }}
           SPOT_ID: ${{ inputs.spotId }}
           SPOT_VISITED: ${{ inputs.visited }}
           SPOT_MEMO: ${{ inputs.memo }}
@@ -35,8 +35,8 @@ jobs:
 
       - name: Fetch updated Notion data
         env:
-          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
-          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          NOTION_API_KEY: ${{ secrets.NOTION_MAP }}
+          NOTION_DATABASE_ID: ${{ secrets.DATABASE_ID }}
         run: python3 scripts/fetch-notion.py
 
       - name: Commit updated data
