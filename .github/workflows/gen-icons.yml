@@ -30,4 +30,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add icons/icon-192.png icons/icon-512.png icons/icon-maskable.png
           git diff --staged --quiet || git commit -m "chore: regenerate PNG icons from SVG [skip ci]"
+          git pull --rebase origin main
           git push
