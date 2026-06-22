@@ -1,4 +1,4 @@
-const CACHE = 'ryosei-map-v2';
+const CACHE = 'ryosei-map-v3';
 
 const PRECACHE = [
   './',
@@ -29,7 +29,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
 
   // data.json: network-first (fresh data preferred; fall back to cache)
-  if (url.pathname.endsWith('data.json') || url.hostname === 'raw.githubusercontent.com') {
+  if (url.pathname.endsWith('data.json')) {
     event.respondWith(
       fetch(request)
         .then(resp => {
