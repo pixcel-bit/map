@@ -129,7 +129,10 @@
       </div>
       <div class="form-group">
         <label class="form-label">GitHub Personal Access Token</label>
-        <input type="password" id="tokenInput" class="form-input" placeholder="ghp_xxxxxxxxxxxx">
+        <div class="input-with-toggle">
+          <input type="password" id="tokenInput" class="form-input" placeholder="ghp_xxxxxxxxxxxx">
+          <button type="button" id="toggleToken" class="btn-toggle-visibility">👁</button>
+        </div>
         <p class="form-hint">スポット追加・訪問記録・コメント更新に必要です。<br>workflow権限が必要です。</p>
       </div>
       <button class="btn btn-primary" id="saveSettings">保存</button>
