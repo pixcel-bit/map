@@ -19,7 +19,7 @@ HOME_LNG = 139.6878
 def photon_geocode(query):
     """Geocode using Photon (Komoot) — free, no key, OSM-based."""
     encoded = urllib.parse.quote(query)
-    url = f"https://photon.komoot.io/api/?q={encoded}&limit=1&lang=ja"
+    url = f"https://photon.komoot.io/api/?q={encoded}&limit=1"
     req = urllib.request.Request(
         url,
         headers={"User-Agent": "ryosei-map/1.0 (github.com/pixcel-bit/map)"},
