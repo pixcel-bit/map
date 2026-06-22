@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 
 
 HOME_ADDRESS = "東京都板橋区大谷口上町65"
+HOME_LAT = 35.7317
+HOME_LNG = 139.6878
 
 
 def nominatim_geocode(query):
@@ -122,14 +124,7 @@ def fetch_all(api_key: str, db_id: str) -> list:
 
 
 def enrich_travel(pages):
-    print("Geocoding home address...")
-    time.sleep(1)
-    home_lat, home_lng = nominatim_geocode(HOME_ADDRESS)
-    if home_lat is None:
-        print("  Could not geocode home address; skipping travel times.", file=sys.stderr)
-        return pages
-
-    print(f"  Home: {home_lat}, {home_lng}")
+    print(f"Using hardcoded home coords: {HOME_LAT}, {HOME_LNG}")
 
     for page in pages:
         props = page.get("properties", {})
@@ -150,7 +145,7 @@ def enrich_travel(pages):
             dest_lat, dest_lng = nominatim_geocode(query)
 
         if dest_lat is not None:
-            car_min = osrm_car_minutes(home_lat, home_lng, dest_lat, dest_lng)
+            car_min = osrm_car_minutes(HOME_LAT, HOME_LNG, dest_lat, dest_lng)
             page["_car_minutes"] = car_min
             page["_transit_url"] = make_transit_url(dest_lat, dest_lng)
             page["_car_dir_url"] = make_car_dir_url(dest_lat, dest_lng)
