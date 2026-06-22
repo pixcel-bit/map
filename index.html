@@ -13,122 +13,30 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-
-  <!-- Settings Modal -->
-  <div id="settingsModal" class="modal-overlay" style="display:none">
-    <div class="modal">
-      <h2 class="modal-title">⚙️ 設定</h2>
-      <p class="modal-desc">
-        GitHub Personal Access Tokenを入力してください。<br>
-        GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)<br>
-        必要な権限：<code>workflow</code>
-      </p>
-      <div class="form-group">
-        <label class="form-label" for="githubTokenInput">GitHub Token</label>
-        <input type="password" id="githubTokenInput" class="form-input" placeholder="ghp_xxxxxxxxxxxx">
-      </div>
-      <button class="btn btn-primary" id="saveSettings">保存</button>
-    </div>
-  </div>
-
-  <!-- Add Spot Modal -->
-  <div id="addModal" class="modal-overlay" style="display:none">
-    <div class="modal modal-large">
-      <div class="modal-header">
-        <h2 class="modal-title">➕ スポットを追加</h2>
-        <button class="modal-close" id="closeAddModal">✕</button>
-      </div>
-      <form id="addForm" autocomplete="off">
-        <div class="form-group">
-          <label class="form-label" for="f-name">スポット名 <span class="required">*</span></label>
-          <input type="text" id="f-name" name="name" class="form-input" placeholder="例：舎人公園" required>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="f-category">カテゴリ</label>
-            <select id="f-category" name="category" class="form-select">
-              <option value="">―選択―</option>
-              <option>公園</option><option>動物園</option><option>水族館</option>
-              <option>乗り物体験</option><option>博物館</option><option>食事</option><option>その他</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="f-area">エリア</label>
-            <select id="f-area" name="area" class="form-select">
-              <option value="">―選択―</option>
-              <option>都内</option><option>埼玉</option><option>神奈川</option>
-              <option>千葉</option><option>群馬</option><option>その他</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="f-env">屋内 / 屋外</label>
-            <select id="f-env" name="environment" class="form-select">
-              <option value="">―選択―</option>
-              <option>屋内</option><option>屋外</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="f-age">年齢適性</label>
-            <select id="f-age" name="ageGroup" class="form-select">
-              <option value="">―選択―</option>
-              <option>今向き</option><option>もう少し大きくなってから</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="f-map">Google マップ URL</label>
-          <input type="url" id="f-map" name="mapUrl" class="form-input" placeholder="https://maps.google.com/...">
-        </div>
-        <div class="form-checks">
-          <label class="check-label"><input type="checkbox" name="hasVehicle"> 🚃 乗り物要素あり</label>
-          <label class="check-label"><input type="checkbox" name="visited"> ✅ 行ったことある</label>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="f-access">アクセスメモ</label>
-          <input type="text" id="f-access" name="accessMemo" class="form-input" placeholder="例：○○駅から徒歅10分">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="f-memo">メモ</label>
-          <textarea id="f-memo" name="memo" class="form-textarea" rows="3" placeholder="感想・ポイントなど"></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary btn-submit">登録する</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Comment Modal -->
-  <div id="commentModal" class="modal-overlay" style="display:none">
-    <div class="modal">
-      <div class="modal-header">
-        <h2 class="modal-title">💬 コメント編集</h2>
-        <button class="modal-close" id="closeCommentModal">✕</button>
-      </div>
-      <div class="form-group" style="margin-top:8px">
-        <textarea id="commentText" class="form-textarea" rows="4" placeholder="感想・メモなど（500文字まで）" maxlength="500"></textarea>
-      </div>
-      <button class="btn btn-primary" id="saveComment">保存</button>
-    </div>
-  </div>
-
   <header class="app-header">
     <div class="header-content">
       <h1 class="app-title">🗺️ りょうせいMAP</h1>
       <div class="header-right">
         <span class="spot-count" id="spotCount">0件</span>
-        <button class="refresh-btn" id="refreshBtn" title="データを更新">
+        <button class="header-icon-btn" id="addSpotBtn" title="スポットを追加">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="16"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+        </button>
+        <button class="header-icon-btn" id="settingsBtn" title="設定">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+        <button class="header-icon-btn refresh-btn" id="refreshBtn" title="データを更新">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
             <path d="M21 3v5h-5"/>
             <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
             <path d="M8 16H3v5"/>
-          </svg>
-        </button>
-        <button class="settings-btn" id="settingsBtn" title="設定">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
         </button>
       </div>
@@ -137,16 +45,21 @@
 
   <div class="filter-section">
     <div class="filter-scroll">
+
       <div class="filter-group">
         <button class="filter-btn active" data-filter="environment" data-value="all">すべて</button>
         <button class="filter-btn" data-filter="environment" data-value="屋内">🏠 屋内</button>
         <button class="filter-btn" data-filter="environment" data-value="屋外">🌳 屋外</button>
       </div>
+
       <div class="filter-divider"></div>
+
       <div class="filter-group">
         <button class="filter-btn toggle-btn" data-filter="unvisited" data-value="true">✨ まだ行ってない</button>
       </div>
+
       <div class="filter-divider"></div>
+
       <div class="filter-group">
         <button class="filter-btn active" data-filter="category" data-value="all">全カテゴリ</button>
         <button class="filter-btn" data-filter="category" data-value="公園">🌿 公園</button>
@@ -157,7 +70,9 @@
         <button class="filter-btn" data-filter="category" data-value="食事">🍜 食事</button>
         <button class="filter-btn" data-filter="category" data-value="その他">📍 その他</button>
       </div>
+
       <div class="filter-divider"></div>
+
       <div class="filter-group">
         <button class="filter-btn active" data-filter="area" data-value="all">全エリア</button>
         <button class="filter-btn" data-filter="area" data-value="都内">東京</button>
@@ -167,12 +82,15 @@
         <button class="filter-btn" data-filter="area" data-value="群馬">群馬</button>
         <button class="filter-btn" data-filter="area" data-value="その他">その他</button>
       </div>
+
       <div class="filter-divider"></div>
+
       <div class="filter-group">
         <button class="filter-btn active" data-filter="ageGroup" data-value="all">全年齢</button>
         <button class="filter-btn" data-filter="ageGroup" data-value="今向き">👶 今向き</button>
         <button class="filter-btn" data-filter="ageGroup" data-value="もう少し大きくなってから">📅 後で</button>
       </div>
+
     </div>
   </div>
 
@@ -188,7 +106,104 @@
     <div class="card-grid" id="cardGrid"></div>
   </main>
 
-  <button class="fab" id="addBtn" title="スポットを追加">＋</button>
+  <!-- Comment modal -->
+  <div id="commentModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">💬 コメント編集</h2>
+        <button class="modal-close" id="closeCommentModal">✕</button>
+      </div>
+      <div class="form-group" style="margin-top:8px">
+        <textarea id="commentText" class="form-textarea" rows="4" placeholder="感想・メモなど（500文字まで）" maxlength="500"></textarea>
+      </div>
+      <button class="btn btn-primary" id="saveComment">保存</button>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div id="settingsModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">⚙️ 設定</h2>
+        <button class="modal-close" id="closeSettings">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">GitHub Personal Access Token</label>
+        <input type="password" id="tokenInput" class="form-input" placeholder="ghp_xxxxxxxxxxxx">
+        <p class="form-hint">スポット追加・訪問記録・コメント更新に必要です。<br>workflow権限が必要です。</p>
+      </div>
+      <button class="btn btn-primary" id="saveSettings">保存</button>
+    </div>
+  </div>
+
+  <!-- Add spot modal -->
+  <div id="addModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">➕ スポットを追加</h2>
+        <button class="modal-close" id="closeAddModal">✕</button>
+      </div>
+      <form id="addSpotForm">
+        <div class="form-group">
+          <label class="form-label">スポット名 *</label>
+          <input type="text" name="spotName" class="form-input" required placeholder="例: 上野動物園">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Google マップ URL</label>
+          <input type="url" name="mapUrl" class="form-input" placeholder="https://maps.google.com/...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">カテゴリ</label>
+          <select name="category" class="form-select">
+            <option value="">選択してください</option>
+            <option>公園</option>
+            <option>動物園</option>
+            <option>水族館</option>
+            <option>乗り物体験</option>
+            <option>博物館</option>
+            <option>食事</option>
+            <option>その他</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">エリア</label>
+          <select name="area" class="form-select">
+            <option value="">選択してください</option>
+            <option>都内</option>
+            <option>埼玉</option>
+            <option>神奈川</option>
+            <option>千葉</option>
+            <option>群馬</option>
+            <option>その他</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">屋内 / 屋外</label>
+          <select name="environment" class="form-select">
+            <option value="">選択してください</option>
+            <option>屋内</option>
+            <option>屋外</option>
+            <option>屋内・屋外両方</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">年齢適性</label>
+          <select name="ageGroup" class="form-select">
+            <option value="">選択してください</option>
+            <option>今向き</option>
+            <option>もう少し大きくなってから</option>
+          </select>
+        </div>
+        <div class="form-group form-checkbox-group">
+          <label class="form-checkbox-label">
+            <input type="checkbox" name="hasVehicle">
+            🚃 乗り物要素あり
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary">追加する</button>
+      </form>
+    </div>
+  </div>
 
   <script src="js/app.js"></script>
   <script>
