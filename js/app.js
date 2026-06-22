@@ -1,6 +1,9 @@
 'use strict';
 
-const DATA_URL = 'data.json';
+const DATA_URL = 'https://raw.githubusercontent.com/pixcel-bit/map/main/data.json';
+const REPO     = 'pixcel-bit/map';
+const ADD_WORKFLOW    = 'add-spot.yml';
+const UPDATE_WORKFLOW = 'update-spot.yml';
 
 const CATEGORY_ICONS = {
   '公園': '🌿',
@@ -12,7 +15,6 @@ const CATEGORY_ICONS = {
   'その他': '📍',
 };
 
-// Filter state
 const filters = {
   environment: 'all',
   unvisited: false,
@@ -22,6 +24,41 @@ const filters = {
 };
 
 let allSpots = [];
+
+// === Config (GitHub PAT) ===
+
+function getToken() {
+  return localStorage.getItem('ryosei_map_config') || '';
+}
+
+// === GitHub workflow dispatch ===
+
+async function callWorkflow(workflow, inputs) {
+  const token = getToken();
+  if (!token) {
+    alert('設定画面でGitHub Personal Access Tokenを入力してください。');
+    return false;
+  }
+  const resp = await fetch(
+    `https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `token ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ref: 'main', inputs }),
+    }
+  );
+  if (!resp.ok) {
+    const txt = await resp.text();
+    console.error('workflow dispatch failed', resp.status, txt);
+    alert(`エラー: ${resp.status}\n${txt}`);
+    return false;
+  }
+  return true;
+}
 
 // === Notion property parsers ===
 
@@ -56,7 +93,7 @@ function date(prop) {
 function parseSpot(page) {
   const p = page.properties ?? {};
   return {
-    id: page.id,
+    id:          page.id,
     name:        title(p['スポット名']),
     mapUrl:      url(p['Google マップ URL']),
     category:    select(p['カテゴリ']),
@@ -64,12 +101,14 @@ function parseSpot(page) {
     accessMemo:  richText(p['アクセスメモ']),
     environment: select(p['屋内 / 屋外']),
     hasVehicle:  checkbox(p['乗り物要素あり']),
-    hasCreature: checkbox(p['虫・生き物要素あり']),
     ageGroup:    select(p['年齢適性']),
     visited:     checkbox(p['行ったことある']),
     lastVisit:   date(p['最後に行った日']),
     rating:      number(p['楽しさ評価']),
     memo:        richText(p['メモ']),
+    carMinutes:  page._car_minutes ?? null,
+    transitUrl:  page._transit_url ?? null,
+    carDirUrl:   page._car_dir_url ?? null,
   };
 }
 
@@ -77,7 +116,6 @@ function parseSpot(page) {
 
 function matchEnv(spot) {
   if (filters.environment === 'all') return true;
-  // Match even if the stored value is e.g. "屋内（雨・猛暑日OK）"
   return spot.environment.includes(filters.environment);
 }
 
@@ -138,8 +176,7 @@ function renderCard(spot) {
   const catIcon = CATEGORY_ICONS[spot.category] ?? '📍';
 
   const features = [];
-  if (spot.hasVehicle)  features.push('🚃 乗り物');
-  if (spot.hasCreature) features.push('🐛 生き物');
+  if (spot.hasVehicle) features.push('🚃 乗り物');
 
   let ageBadge = '';
   if (spot.ageGroup === '今向き') {
@@ -159,10 +196,6 @@ function renderCard(spot) {
       </a>`
     : '';
 
-  const visitedHtml = spot.visited
-    ? `<span class="visited-label">✅ 訪問済${spot.lastVisit ? ' (' + fmtDate(spot.lastVisit) + ')' : ''}</span>`
-    : `<span class="visited-label unvisited">✨ 未訪問</span>`;
-
   const memoHtml = spot.memo
     ? `<p class="card-memo">💬 ${esc(spot.memo)}</p>`
     : '';
@@ -170,6 +203,23 @@ function renderCard(spot) {
   const accessHtml = spot.accessMemo
     ? `<p class="card-access">🚃 ${esc(spot.accessMemo)}</p>`
     : '';
+
+  // Travel time row
+  let travelHtml = '';
+  if (spot.carMinutes !== null || spot.transitUrl) {
+    const carPart = spot.carMinutes !== null && spot.carDirUrl
+      ? `<a href="${esc(spot.carDirUrl)}" target="_blank" rel="noopener noreferrer" class="travel-link travel-car">🚗 ${spot.carMinutes}分</a>`
+      : spot.carMinutes !== null
+        ? `<span class="travel-link travel-car">🚗 ${spot.carMinutes}分</span>`
+        : '';
+    const transitPart = spot.transitUrl
+      ? `<a href="${esc(spot.transitUrl)}" target="_blank" rel="noopener noreferrer" class="travel-link travel-transit">🚃 ルート</a>`
+      : '';
+    travelHtml = `<div class="card-travel">${carPart}${transitPart}</div>`;
+  }
+
+  const visitedBtn = `<button class="btn-action btn-visited${spot.visited ? ' is-visited' : ''}" data-id="${esc(spot.id)}" data-visited="${spot.visited}" title="${spot.visited ? '訪問済み' : '未訪問'}">${spot.visited ? '✅' : '⬜'}</button>`;
+  const commentBtn = `<button class="btn-action btn-comment" data-id="${esc(spot.id)}" data-memo="${esc(spot.memo)}" title="コメント編集">💬</button>`;
 
   return `
 <div class="spot-card${spot.visited ? ' visited' : ''}">
@@ -185,20 +235,25 @@ function renderCard(spot) {
   </div>
   ${memoHtml}
   ${accessHtml}
+  ${travelHtml}
   <div class="card-footer">
     <div class="footer-left">
-      ${visitedHtml}
+      ${spot.lastVisit ? `<span class="visited-label">✅ 訪問済 (${fmtDate(spot.lastVisit)})</span>` : ''}
       ${renderStars(spot.rating)}
     </div>
-    ${mapBtn}
+    <div class="footer-actions">
+      ${visitedBtn}
+      ${commentBtn}
+      ${mapBtn}
+    </div>
   </div>
 </div>`;
 }
 
 function render() {
-  const grid     = document.getElementById('cardGrid');
-  const empty    = document.getElementById('emptyState');
-  const countEl  = document.getElementById('spotCount');
+  const grid    = document.getElementById('cardGrid');
+  const empty   = document.getElementById('emptyState');
+  const countEl = document.getElementById('spotCount');
 
   const filtered = applyFilters(allSpots);
   countEl.textContent = `${filtered.length}件`;
@@ -210,6 +265,151 @@ function render() {
     empty.style.display = 'none';
     grid.innerHTML = filtered.map(renderCard).join('');
   }
+}
+
+// === Card action buttons (event delegation) ===
+
+function setupCardActions() {
+  const grid = document.getElementById('cardGrid');
+
+  grid.addEventListener('click', async e => {
+    const visitedBtn = e.target.closest('.btn-visited');
+    if (visitedBtn) {
+      const spotId  = visitedBtn.dataset.id;
+      const current = visitedBtn.dataset.visited === 'true';
+      const next    = !current;
+
+      // Optimistic UI
+      visitedBtn.dataset.visited = String(next);
+      visitedBtn.textContent     = next ? '✅' : '⬜';
+      visitedBtn.classList.toggle('is-visited', next);
+      const card = visitedBtn.closest('.spot-card');
+      if (card) card.classList.toggle('visited', next);
+
+      const spot = allSpots.find(s => s.id === spotId);
+      if (spot) spot.visited = next;
+
+      await callWorkflow(UPDATE_WORKFLOW, { spotId, visited: String(next), memo: '__SKIP__' });
+      return;
+    }
+
+    const commentBtn = e.target.closest('.btn-comment');
+    if (commentBtn) {
+      openCommentModal(commentBtn.dataset.id, commentBtn.dataset.memo);
+    }
+  });
+}
+
+// === Comment modal ===
+
+let _commentSpotId = '';
+
+function openCommentModal(spotId, currentMemo) {
+  _commentSpotId = spotId;
+  document.getElementById('commentText').value = currentMemo || '';
+  document.getElementById('commentModal').style.display = 'flex';
+  document.getElementById('commentText').focus();
+}
+
+function setupCommentModal() {
+  document.getElementById('closeCommentModal')?.addEventListener('click', () => {
+    document.getElementById('commentModal').style.display = 'none';
+  });
+
+  document.getElementById('commentModal')?.addEventListener('click', e => {
+    if (e.target === document.getElementById('commentModal')) {
+      document.getElementById('commentModal').style.display = 'none';
+    }
+  });
+
+  document.getElementById('saveComment')?.addEventListener('click', async () => {
+    const memo  = document.getElementById('commentText').value;
+    const modal = document.getElementById('commentModal');
+    modal.style.display = 'none';
+
+    const ok = await callWorkflow(UPDATE_WORKFLOW, {
+      spotId: _commentSpotId,
+      visited: '',
+      memo,
+    });
+
+    if (ok) {
+      // Update in-memory memo optimistically
+      const spot = allSpots.find(s => s.id === _commentSpotId);
+      if (spot) {
+        spot.memo = memo;
+        render();
+      }
+    }
+  });
+}
+
+// === Settings modal ===
+
+function setupSettings() {
+  const settingsBtn = document.getElementById('settingsBtn');
+  const modal       = document.getElementById('settingsModal');
+  const closeBtn    = document.getElementById('closeSettings');
+  const saveBtn     = document.getElementById('saveSettings');
+  const input       = document.getElementById('tokenInput');
+
+  settingsBtn?.addEventListener('click', () => {
+    input.value = getToken();
+    modal.style.display = 'flex';
+  });
+
+  closeBtn?.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  modal?.addEventListener('click', e => {
+    if (e.target === modal) modal.style.display = 'none';
+  });
+
+  saveBtn?.addEventListener('click', () => {
+    localStorage.setItem('ryosei_map_config', input.value.trim());
+    modal.style.display = 'none';
+  });
+}
+
+// === Add-spot modal ===
+
+function setupAddSpot() {
+  const addBtn      = document.getElementById('addSpotBtn');
+  const modal       = document.getElementById('addModal');
+  const closeBtn    = document.getElementById('closeAddModal');
+  const form        = document.getElementById('addSpotForm');
+
+  addBtn?.addEventListener('click', () => {
+    form?.reset();
+    modal.style.display = 'flex';
+  });
+
+  closeBtn?.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  modal?.addEventListener('click', e => {
+    if (e.target === modal) modal.style.display = 'none';
+  });
+
+  form?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(form));
+    const ok = await callWorkflow(ADD_WORKFLOW, {
+      spotName:    data.spotName || '',
+      mapUrl:      data.mapUrl || '',
+      category:    data.category || '',
+      area:        data.area || '',
+      environment: data.environment || '',
+      ageGroup:    data.ageGroup || '',
+      hasVehicle:  data.hasVehicle ? 'true' : 'false',
+    });
+    if (ok) {
+      modal.style.display = 'none';
+      alert('スポットを追加しました！\nGitHub Actionsが完了すると（約1〜2分後）データが更新されます。');
+    }
+  });
 }
 
 // === Filter event wiring ===
@@ -280,7 +480,6 @@ async function loadData(forceRefresh = false) {
       .map(parseSpot)
       .filter(s => s.name)
       .sort((a, b) => {
-        // Unvisited first, then by rating desc, then name asc
         if (a.visited !== b.visited) return a.visited ? 1 : -1;
         if ((b.rating ?? 0) !== (a.rating ?? 0)) return (b.rating ?? 0) - (a.rating ?? 0);
         return a.name.localeCompare(b.name, 'ja');
@@ -303,4 +502,8 @@ async function loadData(forceRefresh = false) {
 // === Boot ===
 
 setupFilters();
+setupCardActions();
+setupCommentModal();
+setupSettings();
+setupAddSpot();
 loadData();
